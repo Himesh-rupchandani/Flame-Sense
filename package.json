@@ -4,15 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "tsx index.ts",
     "build": "vite build",
-    "start": "node server.ts",
+    "start": "node index.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js",
+    "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "ml:prepare": "python3 ml/prepare_dataset.py",
     "ml:train": "python3 ml/train_model.py",
-    "ml:serve": "python3 -m uvicorn ml.service:app --host 0.0.0.0 --port 8001"
+    "ml:serve": "python3 -m uvicorn ml.service:app --host 0.0.0.0 --port 8001",
+    "ml:export": "python3 ml/export_ts_model.py"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

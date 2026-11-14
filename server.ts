@@ -1,8 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { FUEL_TYPES } from './src/data/nasaExperiments.ts';
 import type { FuelTypeId } from './src/data/nasaExperiments.ts';
@@ -64,9 +62,6 @@ import { saveContactMessage } from './server/services/contactService.ts';
 dotenv.config({ quiet: true });
 
 const VALID_ML_FUELS = new Set<string>(FUEL_TYPES.map((fuel) => fuel.id));
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * Builds the fully configured Express application (API routes + error handling).
@@ -732,48 +727,4 @@ export async function createApp(): Promise<express.Express> {
   });
 
   return app;
-}
-
-/**
- * Local / container entrypoint: serves the Vite dev server in development and the
- * built `dist/` bundle in production, then listens on PORT.
- *
- * Vercel does not use this function; it imports `createApp()` through `api/index.ts`.
- */
-async function startServer() {
-  const PORT = Number(process.env.PORT || 3000);
-  const isProduction = process.env.NODE_ENV === 'production';
-  const app = await createApp();
-
-  if (!isProduction) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(__dirname, 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (_req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Flame in Freefall server running on http://0.0.0.0:${PORT}`);
-  });
-}
-
-// Only boot the long-running HTTP server when this file is executed directly
-// (local dev / container). On Vercel, `api/index.ts` imports `createApp()` and the
-// platform owns the HTTP lifecycle.
-const isDirectExecution =
-  typeof process.argv[1] === 'string' && path.resolve(process.argv[1]) === __filename;
-
-if (isDirectExecution && !process.env.VERCEL) {
-  startServer().catch((err) => {
-    console.error('Failed to start Flame in Freefall server:', err);
-    process.exit(1);
-  });
 }

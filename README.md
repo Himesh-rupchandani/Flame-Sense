@@ -65,7 +65,7 @@ npm run dev
 ```bash
 npm run lint
 npm run build
-npm start
+npm start        # serves dist/ on PORT (default 3000)
 ```
 
 ---
@@ -100,7 +100,8 @@ npm start
 ├── api/
 │   └── index.ts                       # Vercel Function entrypoint — re-exports the Express app from server.ts
 ├── vercel.json                        # Vercel build/routing config (static SPA + one API function)
-├── server.ts                          # Express app factory (`createApp`) + local Vite dev/prod server
+├── server.ts                          # Express app factory (`createApp`) + full REST API
+├── index.ts                           # Local/container launcher (Vite dev middleware or `dist/`)
 ├── server/
 │   ├── database.ts                    # SQLite schema initialization, migrations & NASA/demo seed data
 │   ├── ml/                            # Portable model artefacts + in-process inference (used on Vercel)
