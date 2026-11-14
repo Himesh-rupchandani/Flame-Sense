@@ -22,6 +22,11 @@ export function renderTopbar(container) {
       </div>
 
       <div class="topbar-meta-cluster">
+        <div style="display: flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11px; color: var(--body); background: var(--panel-subtle); border: 1px solid var(--border-subtle); padding: 3px 9px; border-radius: 6px;">
+          <span class="live-pip" aria-hidden="true"></span>
+          <span style="font-weight: 600; color: var(--accent-dark);">ISS ECLSS LOOP:</span>
+          <span style="color: var(--ink);">NOMINAL (10.2 PSI READY)</span>
+        </div>
         <span class="hackathon-chip" title="Project built for NASA Space Apps / Hackathon Challenge">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10"></circle>

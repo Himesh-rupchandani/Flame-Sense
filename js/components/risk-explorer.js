@@ -70,7 +70,7 @@ export async function renderRiskExplorer(container) {
         <!-- 4 Precision Instrument Sliders -->
         <div id="sliders-wrap">
           <!-- Slider 1: Oxygen -->
-          <div class="instrument-slider-row">
+          <div class="instrument-slider-row" data-tooltip="Ambient oxygen mole fraction. Values >21% correspond to exploration habitats that sharply increase combustion rate.">
             <div class="slider-label-bar">
               <label for="slider-o2" class="slider-name">Oxygen Concentration</label>
               <span class="slider-units">(% molar O<sub>2</sub>)</span>
@@ -95,7 +95,7 @@ export async function renderRiskExplorer(container) {
           </div>
 
           <!-- Slider 2: Pressure -->
-          <div class="instrument-slider-row">
+          <div class="instrument-slider-row" data-tooltip="Total cabin pressure in PSI / kPa. Lower pressure reduces overall gas density, but does not compensate for high O2%.">
             <div class="slider-label-bar">
               <label for="slider-pressure" class="slider-name">Total Environmental Pressure</label>
               <span class="slider-units">(psi / kPa)</span>
@@ -120,7 +120,7 @@ export async function renderRiskExplorer(container) {
           </div>
 
           <!-- Slider 3: Airflow -->
-          <div class="instrument-slider-row">
+          <div class="instrument-slider-row" data-tooltip="Forced cabin ventilation velocity from life-support loops. In zero-g, 1-15 cm/s airflow feeds the flame and lowers LOC.">
             <div class="slider-label-bar">
               <label for="slider-airflow" class="slider-name">Ventilation / Forced Airflow</label>
               <span class="slider-units">(cm/s)</span>
@@ -145,7 +145,7 @@ export async function renderRiskExplorer(container) {
           </div>
 
           <!-- Slider 4: Thickness -->
-          <div class="instrument-slider-row" style="margin-bottom: 0;">
+          <div class="instrument-slider-row" style="margin-bottom: 0;" data-tooltip="Material sample physical thickness. Thinner films heat up much faster and reach flashover rapidly.">
             <div class="slider-label-bar">
               <label for="slider-thickness" class="slider-name">Material Specimen Thickness</label>
               <span class="slider-units">(mm)</span>
@@ -180,7 +180,7 @@ export async function renderRiskExplorer(container) {
 
         <!-- Prominent Semicircular Gauge -->
         <div class="gauge-visual-section">
-          <div class="gauge-svg-wrap">
+          <div class="gauge-svg-wrap" data-tooltip="Composite empirical fire risk score (0–100) calibrated against NASA microgravity trials.">
             <svg viewBox="0 0 240 170" width="240" height="170" id="risk-gauge-svg" role="img" aria-label="Semicircular Risk Gauge">
               <!-- Background Arc -->
               <path

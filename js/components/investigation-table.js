@@ -11,66 +11,130 @@ import { getMeta, getInvestigations } from "../services/api.js";
  */
 export async function renderOverview(container) {
   container.innerHTML = `
-    <!-- Eye-Catching Scientific Hero Stage Banner -->
-    <section class="hero-stage-card" aria-label="Microgravity Combustion Hero Stage">
-      <div class="hero-stage-image-wrap">
-        <img
-          src="/src/assets/images/hero_microgravity_flame_1794122765420.jpg"
-          alt="Glowing spherical microgravity flame inside NASA combustion chamber"
-          class="hero-stage-img"
-          loading="eager"
-          referrerpolicy="no-referrer"
-        />
-        <div class="hero-scrim-gradient" aria-hidden="true"></div>
-      </div>
+    <!-- Interactive NASA Mission Status Console -->
+    <section class="mission-console-card" aria-label="NASA Mission Status Console">
+      <header class="mission-console-topbar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span class="live-pip" aria-hidden="true"></span>
+          <span style="font-weight: 700; color: #34D399; letter-spacing: 0.05em;">NASA ISS &amp; LUNAR HABITAT DESK</span>
+          <span style="color: #64748B;">•</span>
+          <span style="color: #94A3B8;">ECLSS ATMOSPHERE MONITOR</span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 14px; font-size: 10px;">
+          <span>FACILITY: <strong style="color: #FFFFFF;">GRC CIR / MSG</strong></span>
+          <span>GRAVITY: <strong style="color: #38BDF8;">g &asymp; 0.0001 g</strong></span>
+          <span>CALIBRATION: <strong style="color: #34D399;">R&sup2; 0.81</strong></span>
+        </div>
+      </header>
 
-      <div class="hero-stage-content">
-        <div>
-          <div class="hero-telemetry-badge">
-            <svg width="8" height="8" viewBox="0 0 24 24" fill="currentColor">
-              <circle cx="12" cy="12" r="10"></circle>
-            </svg>
-            NASA ISS TELEMETRY ARCHIVE &bull; FLIGHT COMBUS-07
+      <div class="mission-console-body">
+        <!-- Left Pane: Atmosphere Selector & Empirical Readouts -->
+        <div class="console-left-pane">
+          <div>
+            <h1 class="console-headline">
+              Microgravity Flammability &amp; Extinguishment Intelligence
+            </h1>
+            <p class="console-subtext">
+              In space, buoyant thermal convection vanishes. Flames burn spherical, silent, and cooler—yet subtle ventilation drafts (0.5 – 15 cm/s) dramatically lower Limiting Oxygen Concentrations.
+            </p>
+
+            <!-- Interactive Atmosphere Preset Switcher -->
+            <div style="margin-top: 14px;">
+              <div class="console-preset-label">Select Mission Atmospheric Baseline:</div>
+              <div class="console-preset-group" id="console-preset-group" role="radiogroup" aria-label="Exploration Atmospheric Baselines">
+                <button type="button" class="console-preset-btn active" data-preset="artemis" title="Artemis Lunar Base Standard (30% O2 @ 10.2 PSI)">
+                  ● Artemis Base (30% O₂ @ 10.2 PSI)
+                </button>
+                <button type="button" class="console-preset-btn" data-preset="iss" title="ISS Standard Atmospheric Air (21% O2 @ 14.7 PSI)">
+                  ● ISS Sea-Level (21% O₂ @ 14.7 PSI)
+                </button>
+                <button type="button" class="console-preset-btn" data-preset="eva" title="EVA Suit Pre-Breathe Protocol (34% O2 @ 8.2 PSI)">
+                  ● EVA Pre-Breathe (34% O₂ @ 8.2 PSI)
+                </button>
+                <button type="button" class="console-preset-btn" data-preset="depress" title="Emergency Cabin Depressurization Protocol (18% O2 @ 7.0 PSI)">
+                  ● Depressurized (18% O₂ @ 7.0 PSI)
+                </button>
+              </div>
+            </div>
           </div>
-          <h1 class="hero-title-headline">
-            Predicting Fire Spread Where Buoyancy Ceases to Exist
-          </h1>
-          <p class="hero-description-text">
-            Without natural gravity convection, flames burn spherical, silent, and cooler—yet steady airflow drafts from cabin life-support loops (0.5 – 15 cm/s) dramatically lower Limiting Oxygen Concentrations.
-          </p>
+
+          <!-- Dynamic Live Atmosphere telemetry grid -->
+          <div>
+            <div class="atmosphere-telemetry-grid">
+              <div class="atmo-telemetry-item" data-tooltip="Total atmospheric pressure inside the crewed cabin or habitat">
+                <span class="atmo-label">Total Pressure</span>
+                <span class="atmo-value font-mono" id="atmo-val-press">70.3 kPa (10.2 PSI)</span>
+              </div>
+              <div class="atmo-telemetry-item" data-tooltip="Oxygen partial pressure in the breathing atmosphere">
+                <span class="atmo-label">Oxygen P<sub>O2</sub></span>
+                <span class="atmo-value font-mono" id="atmo-val-po2">21.1 kPa (30%)</span>
+              </div>
+              <div class="atmo-telemetry-item" data-tooltip="Effective Limiting Oxygen Concentration under cabin ventilation flow">
+                <span class="atmo-label">Effective LOC</span>
+                <span class="atmo-value font-mono" id="atmo-val-loc" style="color: var(--accent);">14.2% O₂</span>
+              </div>
+              <div class="atmo-telemetry-item" data-tooltip="Empirical flammability risk score from 0 (inert) to 100 (critical propagation)">
+                <span class="atmo-label">Risk Index</span>
+                <span class="atmo-value font-mono" id="atmo-val-risk" style="color: var(--danger);">68 (CRITICAL)</span>
+              </div>
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap;">
+              <a href="#/risk" class="btn btn-accent" style="padding: 8px 16px; font-weight: 600;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"></circle>
+                  <polyline points="12 6 12 12 16 14"></polyline>
+                </svg>
+                Launch Combustion Risk Explorer &rarr;
+              </a>
+              <a href="#/experiments" class="btn btn-outline" style="padding: 8px 14px;">
+                Browse 24 Flight Trials
+              </a>
+            </div>
+          </div>
         </div>
 
-        <div style="display: flex; flex-direction: column; gap: 12px;">
-          <div class="hero-telemetry-dock" aria-label="Flight Telemetry Readout">
-            <div class="hero-dock-item">
-              <span class="hero-dock-label">Combustion Mode</span>
-              <span class="hero-dock-val" style="color: #34D399;">SPHERICAL DIFFUSION</span>
+        <!-- Right Pane: In-Situ Optical Chamber Telemetry Stage -->
+        <div class="console-right-pane">
+          <div>
+            <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px;">
+              <div style="font-family: var(--font-mono); font-size: 11px; font-weight: 700; color: #34D399; letter-spacing: 0.05em; display: flex; align-items: center; gap: 6px;">
+                <span class="live-pip" aria-hidden="true"></span>
+                OPTICAL FLIGHT TELEMETRY
+              </div>
+              <span class="font-mono" style="font-size: 10px; color: #94A3B8;">NASA GRC ARCHIVE</span>
             </div>
-            <div class="hero-dock-item">
-              <span class="hero-dock-label">Gravity State</span>
-              <span class="hero-dock-val">g &asymp; 0.0001 g</span>
-            </div>
-            <div class="hero-dock-item">
-              <span class="hero-dock-label">Artemis Baseline</span>
-              <span class="hero-dock-val" style="color: var(--orange);">30% O<sub>2</sub> @ 10.2 PSI</span>
-            </div>
-            <div class="hero-dock-item">
-              <span class="hero-dock-label">Model Status</span>
-              <span class="hero-dock-val">CALIBRATED (R&sup2; 0.81)</span>
+
+            <div class="console-stage-screen">
+              <img
+                id="console-stage-photo"
+                src="/src/assets/images/hero_microgravity_flame_1794122765420.jpg"
+                alt="Optical flight observation"
+                class="console-stage-img"
+                loading="eager"
+              />
+              <div class="console-screen-hud">
+                <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 9.5px; color: #E2E8F0;">
+                  <span id="console-stage-apparatus">CIR / MDCA APPARATUS</span>
+                  <span id="console-stage-burnid">BURN #1042-C</span>
+                </div>
+                <div>
+                  <div id="console-regime-title" style="font-size: 13px; font-weight: 700; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">
+                    Quasi-Steady Spherical Diffusion Shell
+                  </div>
+                  <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; color: #CBD5E1; border-top: 1px solid rgba(255, 255, 255, 0.2); margin-top: 6px; padding-top: 4px;">
+                    <span>Peak Temp: <strong id="console-stage-temp" style="color: #FBBF24;">1780 K</strong></span>
+                    <span>Radiative Loss: <strong id="console-stage-rad" style="color: #38BDF8;">31%</strong></span>
+                    <span>State: <strong id="console-stage-status" style="color: #F87171;">ELEVATED RISK</strong></span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="hero-stage-actions">
-            <a href="#/risk" class="btn btn-accent" style="padding: 9px 18px; font-weight: 600;">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-              Launch Fire Risk Explorer
-            </a>
-            <a href="#/experiments" class="btn" style="background: rgba(255, 255, 255, 0.12); color: #FFFFFF; border-color: rgba(255, 255, 255, 0.25); backdrop-filter: blur(4px); padding: 9px 16px;">
-              Browse 24 Flight Investigations &rarr;
-            </a>
+          <div style="margin-top: 10px; font-size: 11px; color: #94A3B8; line-height: 1.4; border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 8px;">
+            <span style="color: #CBD5E1; font-weight: 600;">Operational Insight:</span>
+            <span id="console-stage-insight">Under enriched Artemis lunar baseline (30% O₂), materials ignite at significantly lower oxygen concentrations despite reduced cabin pressure.</span>
           </div>
         </div>
       </div>
@@ -276,12 +340,12 @@ export async function renderOverview(container) {
       getInvestigations({ sortBy: "relevance-desc" })
     ]);
 
-    // Render KPI Cards
+    // Render KPI Cards with Scientific Telemetry Tooltips
     const kpiContainer = container.querySelector("#kpi-container");
     if (kpiContainer) {
       kpiContainer.innerHTML = `
         <!-- Card 1: Investigations Indexed -->
-        <div class="kpi-card" tabindex="0" role="region" aria-label="Investigations Indexed">
+        <div class="kpi-card" tabindex="0" role="region" aria-label="Investigations Indexed" data-tooltip="24 empirical microgravity combustion flight investigations from NASA Glenn (GRC), Marshall (MSFC), and ESA archives.">
           <div class="kpi-top-row">
             <span class="kpi-label">Investigations Indexed</span>
             <div class="kpi-icon" aria-hidden="true">
@@ -302,7 +366,7 @@ export async function renderOverview(container) {
         </div>
 
         <!-- Card 2: Test Runs -->
-        <div class="kpi-card" tabindex="0" role="region" aria-label="Test Runs">
+        <div class="kpi-card" tabindex="0" role="region" aria-label="Test Runs" data-tooltip="428 verified individual burn trials across CIR, MSG glovebox, and Cygnus Saffire flight series.">
           <div class="kpi-top-row">
             <span class="kpi-label">Digitized Test Runs</span>
             <div class="kpi-icon" aria-hidden="true">
@@ -321,7 +385,7 @@ export async function renderOverview(container) {
         </div>
 
         <!-- Card 3: Fuels Covered -->
-        <div class="kpi-card" tabindex="0" role="region" aria-label="Fuels Covered">
+        <div class="kpi-card" tabindex="0" role="region" aria-label="Fuels Covered" data-tooltip="6 standardized aerospace fuel classes: Cotton, Nomex, PMMA, HDPE, Alkanes, and Methane.">
           <div class="kpi-top-row">
             <span class="kpi-label">Fuels Covered</span>
             <div class="kpi-icon" aria-hidden="true">
@@ -344,7 +408,7 @@ export async function renderOverview(container) {
         </div>
 
         <!-- Card 4: Model MAE with R2 and Last-Trained -->
-        <div class="kpi-card" tabindex="0" role="region" aria-label="Model Accuracy">
+        <div class="kpi-card" tabindex="0" role="region" aria-label="Model Accuracy" data-tooltip="Mean Absolute Error of 1.4% O₂ on Limiting Oxygen Concentration. Calibrated R² = 0.81 against flight trials.">
           <div class="kpi-top-row">
             <span class="kpi-label">Model MAE</span>
             <div class="kpi-icon" aria-hidden="true">
@@ -370,6 +434,119 @@ export async function renderOverview(container) {
         </div>
       `;
     }
+
+    // Wire up atmosphere preset switcher on Overview Mission Console
+    const presetButtons = container.querySelectorAll(".console-preset-btn");
+    const atmoPress = container.querySelector("#atmo-val-press");
+    const atmoPo2 = container.querySelector("#atmo-val-po2");
+    const atmoLoc = container.querySelector("#atmo-val-loc");
+    const atmoRisk = container.querySelector("#atmo-val-risk");
+    const stagePhoto = container.querySelector("#console-stage-photo");
+    const stageApparatus = container.querySelector("#console-stage-apparatus");
+    const stageBurnId = container.querySelector("#console-stage-burnid");
+    const stageRegimeTitle = container.querySelector("#console-regime-title");
+    const stageTemp = container.querySelector("#console-stage-temp");
+    const stageRad = container.querySelector("#console-stage-rad");
+    const stageStatus = container.querySelector("#console-stage-status");
+    const stageInsight = container.querySelector("#console-stage-insight");
+
+    const PRESETS = {
+      artemis: {
+        press: "70.3 kPa (10.2 PSI)",
+        po2: "21.1 kPa (30%)",
+        loc: "14.2% O₂",
+        risk: "68 (CRITICAL)",
+        riskColor: "var(--danger)",
+        apparatus: "CIR / MDCA APPARATUS",
+        burnId: "BURN #1042-C",
+        title: "Quasi-Steady Spherical Diffusion Shell",
+        temp: "1780 K",
+        rad: "31%",
+        status: "ELEVATED RISK",
+        statusColor: "#F87171",
+        photo: "/src/assets/images/hero_microgravity_flame_1794122765420.jpg",
+        insight: "Under enriched Artemis lunar baseline (30% O₂), materials ignite at significantly lower oxygen concentrations despite reduced cabin pressure."
+      },
+      iss: {
+        press: "101.3 kPa (14.7 PSI)",
+        po2: "21.3 kPa (21%)",
+        loc: "16.8% O₂",
+        risk: "36 (CAUTION)",
+        riskColor: "var(--orange)",
+        apparatus: "MSG / BASS-II APPARATUS",
+        burnId: "EXP-ISS-44",
+        title: "Forced Convective Flow Spread",
+        temp: "1620 K",
+        rad: "38%",
+        status: "NOMINAL DIFFUSION",
+        statusColor: "#34D399",
+        photo: "/src/assets/images/iss_glovebox_combustion_1794122767129.jpg",
+        insight: "ISS standard air (21% O₂) requires ventilation cutoff and nitrogen purge to suppress sustained smolder on Nomex/cotton fabrics."
+      },
+      eva: {
+        press: "56.5 kPa (8.2 PSI)",
+        po2: "19.2 kPa (34%)",
+        loc: "13.1% O₂",
+        risk: "74 (CRITICAL)",
+        riskColor: "var(--danger)",
+        apparatus: "CYGNUS SAFFIRE DUCT",
+        burnId: "SAFFIRE-III RUN 04",
+        title: "High-Oxygen Aerodynamic Duct Flame",
+        temp: "1940 K",
+        rad: "26%",
+        status: "HIGH PROPAGATION",
+        statusColor: "#F87171",
+        photo: "/src/assets/images/saffire_flame_duct_1794122766942.jpg",
+        insight: "EVA suit pre-breathe atmosphere (34% O₂) drastically increases flame spread velocity along wiring insulation and fabric seams."
+      },
+      depress: {
+        press: "48.3 kPa (7.0 PSI)",
+        po2: "8.7 kPa (18%)",
+        loc: "19.4% O₂",
+        risk: "18 (SAFE ZONE)",
+        riskColor: "var(--success)",
+        apparatus: "CIR FLEX-2 CHAMBER",
+        burnId: "DROPLET-FLEX-09",
+        title: "Radiative Extinction Limit",
+        temp: "1380 K",
+        rad: "46%",
+        status: "SELF-EXTINGUISHING",
+        statusColor: "#38BDF8",
+        photo: "/src/assets/images/droplet_cool_flame_1794122766620.jpg",
+        insight: "Depressurizing cabin to 7.0 PSI with 18% O₂ reduces oxygen below the LOC of most solid polymers, starving the reaction zone."
+      }
+    };
+
+    presetButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.preset;
+        const data = PRESETS[key];
+        if (!data) return;
+
+        presetButtons.forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+
+        if (atmoPress) atmoPress.textContent = data.press;
+        if (atmoPo2) atmoPo2.innerHTML = `${data.po2}`;
+        if (atmoLoc) atmoLoc.textContent = data.loc;
+        if (atmoRisk) {
+          atmoRisk.textContent = data.risk;
+          atmoRisk.style.color = data.riskColor;
+        }
+
+        if (stagePhoto) stagePhoto.src = data.photo;
+        if (stageApparatus) stageApparatus.textContent = data.apparatus;
+        if (stageBurnId) stageBurnId.textContent = data.burnId;
+        if (stageRegimeTitle) stageRegimeTitle.textContent = data.title;
+        if (stageTemp) stageTemp.textContent = data.temp;
+        if (stageRad) stageRad.textContent = data.rad;
+        if (stageStatus) {
+          stageStatus.textContent = data.status;
+          stageStatus.style.color = data.statusColor;
+        }
+        if (stageInsight) stageInsight.textContent = data.insight;
+      });
+    });
 
     // Render Top 5 Investigations Table
     const topTbody = container.querySelector("#top-tbody");

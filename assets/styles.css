@@ -200,48 +200,318 @@ a:hover {
   text-transform: uppercase;
 }
 
-/* Tab Navigation */
+/* Floating Segmented Navigation Bar */
 .tabnav-container {
-  background-color: var(--panel);
-  border-bottom: 1px solid var(--border);
+  background-color: var(--bg);
+  position: sticky;
+  top: 50px;
+  z-index: 38;
+  padding: 10px 16px 2px;
 }
 
-.tabnav-inner {
+.floating-nav-wrap {
   max-width: 1080px;
   margin: 0 auto;
-  padding: 0 16px;
   display: flex;
-  gap: 20px;
+  justify-content: center;
+}
+
+.floating-nav-bar {
+  display: inline-flex;
+  align-items: center;
+  background-color: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 4px;
+  gap: 3px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.05);
+  max-width: 100%;
   overflow-x: auto;
   scrollbar-width: none;
 }
-.tabnav-inner::-webkit-scrollbar {
+.floating-nav-bar::-webkit-scrollbar {
   display: none;
 }
 
-.tab-link {
+.nav-segment-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 10px 2px;
-  color: var(--muted);
-  font-size: 13px;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
   font-weight: 500;
+  color: var(--muted);
   text-decoration: none;
-  border-bottom: 2px solid transparent;
-  transition: color 150ms ease-out, border-color 150ms ease-out;
+  background: transparent;
+  transition: all 140ms ease-out;
   white-space: nowrap;
 }
 
-.tab-link:hover {
+.nav-segment-btn:hover {
   color: var(--ink);
+  background-color: #F4F7F5;
   text-decoration: none;
 }
 
-.tab-link.active {
+.nav-segment-btn.active {
   color: var(--ink);
+  background-color: var(--accent-light);
   font-weight: 600;
-  border-bottom-color: var(--accent);
+  box-shadow: 0 1px 3px rgba(8, 124, 80, 0.12);
+}
+
+.nav-badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 9999px;
+  background-color: var(--bg);
+  color: var(--muted);
+  border: 1px solid var(--border);
+  transition: all 140ms ease-out;
+}
+
+.nav-segment-btn.active .nav-badge-chip {
+  background-color: #FFFFFF;
+  color: var(--accent-dark);
+  border-color: rgba(8, 124, 80, 0.3);
+}
+
+.nav-badge-chip.badge-live {
+  color: #047857;
+  background-color: #ECFDF5;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.live-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: #10B981;
+  display: inline-block;
+  animation: pulse-dot 2s infinite ease-in-out;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(0.85); }
+}
+
+/* Scientific Telemetry Tooltip */
+[data-tooltip] {
+  position: relative;
+  cursor: help;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background-color: #0F172A;
+  color: #F8FAFC;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: normal;
+  width: max-content;
+  max-width: 240px;
+  text-align: left;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms ease-out, transform 150ms ease-out, visibility 150ms;
+  z-index: 100;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus::after {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Mission Status Console Card on Overview */
+.mission-console-card {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+}
+
+.mission-console-topbar {
+  background-color: #0B0E14;
+  color: #F8FAFC;
+  padding: 10px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.mission-console-body {
+  display: grid;
+  grid-template-columns: 1.28fr 1fr;
+  background-color: var(--panel);
+}
+
+.console-left-pane {
+  padding: 20px 22px;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.console-right-pane {
+  padding: 20px 22px;
+  background-color: #0F172A;
+  color: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.console-headline {
+  color: var(--ink);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.console-subtext {
+  color: var(--body);
+  font-size: 12.5px;
+  line-height: 1.5;
+  margin-top: 6px;
+}
+
+/* Console Scenario Presets */
+.console-preset-label {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+
+.console-preset-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
+.console-preset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background-color: var(--panel-subtle);
+  color: var(--body);
+  cursor: pointer;
+  transition: all 140ms ease-out;
+}
+
+.console-preset-btn:hover {
+  background-color: #FFFFFF;
+  border-color: var(--accent);
+}
+
+.console-preset-btn.active {
+  background-color: var(--accent-light);
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+/* Atmosphere Telemetry Grid in Console */
+.atmosphere-telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 12px 14px;
+  background-color: var(--panel-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  margin-top: 10px;
+}
+
+.atmo-telemetry-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.atmo-label {
+  font-size: 9.5px;
+  font-family: var(--font-mono);
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.atmo-value {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-top: 2px;
+}
+
+/* Simulated Flame Screen in Console */
+.console-stage-screen {
+  position: relative;
+  width: 100%;
+  height: 185px;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: #0B0E14;
+}
+
+.console-stage-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px;
+  opacity: 0.92;
+  transition: transform 250ms ease-out;
+}
+
+.console-stage-screen:hover .console-stage-img {
+  transform: scale(1.02);
+}
+
+.console-screen-hud {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(11, 14, 20, 0.92) 0%, rgba(11, 14, 20, 0.2) 60%, rgba(11, 14, 20, 0.4) 100%);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 /* Main Container */
@@ -249,7 +519,7 @@ a:hover {
   max-width: 1080px;
   width: 100%;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: 16px 16px 48px;
   flex: 1;
 }
 
@@ -1512,6 +1782,16 @@ a:hover {
 }
 
 @media (max-width: 768px) {
+  .mission-console-body {
+    grid-template-columns: 1fr;
+  }
+  .console-left-pane {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .atmosphere-telemetry-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
   .hero-stage-image-wrap {
     height: auto;
     min-height: 320px;

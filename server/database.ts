@@ -1,0 +1,482 @@
+import fs from 'fs';
+import path from 'path';
+import { DatabaseSync } from 'node:sqlite';
+import {
+  NASA_EXPERIMENTS,
+  RESEARCH_INSIGHTS_SEED,
+  computeCrewSafetyRelevance,
+} from '../src/data/nasaExperiments.ts';
+
+let dbInstance: DatabaseSync | null = null;
+
+export function getDb(): DatabaseSync {
+  if (dbInstance) return dbInstance;
+
+  const dataDir = path.resolve(process.cwd(), 'data');
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+  }
+
+  const dbPath = path.join(dataDir, 'flame_in_freefall.db');
+  const db = new DatabaseSync(dbPath);
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('PRAGMA foreign_keys = ON;');
+
+  initializeSchemaAndMigrate(db);
+  seedDatabaseIfNeeded(db);
+
+  dbInstance = db;
+  return db;
+}
+
+function initializeSchemaAndMigrate(db: DatabaseSync) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS system_meta (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS predictions (
+      id TEXT PRIMARY KEY,
+      oxygen_pct REAL NOT NULL,
+      pressure_psi REAL NOT NULL,
+      airflow_cms REAL NOT NULL,
+      fuel_type TEXT NOT NULL,
+      classification TEXT NOT NULL,
+      risk_score REAL NOT NULL,
+      loc_percent REAL NOT NULL,
+      o2_margin_from_loc REAL NOT NULL,
+      baseline_score REAL NOT NULL,
+      explanation TEXT NOT NULL,
+      model_version TEXT NOT NULL,
+      corroborating_slugs_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS prediction_explanations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      prediction_id TEXT NOT NULL,
+      feature_key TEXT NOT NULL,
+      feature_label TEXT NOT NULL,
+      value_label TEXT NOT NULL,
+      phi_value REAL NOT NULL,
+      importance_pct REAL NOT NULL,
+      direction TEXT NOT NULL,
+      FOREIGN KEY (prediction_id) REFERENCES predictions(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS research_insights (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      slug TEXT UNIQUE NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      metric_label TEXT NOT NULL,
+      metric_value TEXT NOT NULL,
+      sort_order INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS contact_messages (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+  `);
+
+  const schemaMeta = db
+    .prepare("SELECT value FROM system_meta WHERE key = 'schema_version'")
+    .get() as { value: string } | undefined;
+
+  if (schemaMeta?.value !== 'v3') {
+    db.exec(`
+      PRAGMA foreign_keys = OFF;
+      DROP TABLE IF EXISTS experiment_references;
+      DROP TABLE IF EXISTS experiment_dynamic_parameters;
+      DROP TABLE IF EXISTS experiment_findings;
+      DROP TABLE IF EXISTS experiment_datasets;
+      DROP TABLE IF EXISTS experiment_parameters;
+      DROP TABLE IF EXISTS experiment_rankings;
+      DROP TABLE IF EXISTS experiments;
+      PRAGMA foreign_keys = ON;
+    `);
+  }
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS experiments (
+      id TEXT PRIMARY KEY,
+      slug TEXT UNIQUE NOT NULL,
+      name TEXT NOT NULL,
+      acronym TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      pillar TEXT NOT NULL,
+      combustion_type TEXT NOT NULL,
+      fuel_type TEXT NOT NULL,
+      fuel_class TEXT NOT NULL,
+      research_platform TEXT NOT NULL,
+      hardware TEXT NOT NULL,
+      gravity TEXT NOT NULL,
+      year INTEGER NOT NULL,
+      start_date TEXT,
+      end_date TEXT,
+      image TEXT NOT NULL,
+      short_description TEXT NOT NULL,
+      overview TEXT NOT NULL,
+      scientific_objectives_json TEXT NOT NULL,
+      research_background TEXT NOT NULL,
+      experimental_setup TEXT NOT NULL,
+      combustion_characteristics TEXT NOT NULL,
+      why_it_matters TEXT NOT NULL,
+      related_slugs_json TEXT NOT NULL,
+      verification_status TEXT NOT NULL DEFAULT 'VERIFIED',
+      content_source_type TEXT NOT NULL DEFAULT 'NASA_NTRS_PUBLICATION',
+      is_demo INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_parameters (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id TEXT NOT NULL UNIQUE,
+      oxygen_min REAL NOT NULL,
+      oxygen_max REAL NOT NULL,
+      pressure_min REAL NOT NULL,
+      pressure_max REAL NOT NULL,
+      airflow_min REAL NOT NULL,
+      airflow_max REAL NOT NULL,
+      parameter_notes TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_dynamic_parameters (
+      id TEXT PRIMARY KEY,
+      experiment_id TEXT NOT NULL,
+      param_name TEXT NOT NULL,
+      param_description TEXT NOT NULL,
+      param_value TEXT NOT NULL,
+      unit TEXT NOT NULL,
+      min_value REAL,
+      max_value REAL,
+      data_type TEXT NOT NULL,
+      measurement_source TEXT NOT NULL,
+      availability_status TEXT NOT NULL,
+      verification_status TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_datasets (
+      id TEXT PRIMARY KEY,
+      experiment_id TEXT NOT NULL,
+      dataset_name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      file_format TEXT NOT NULL,
+      sample_count INTEGER NOT NULL,
+      variables_json TEXT NOT NULL,
+      source_name TEXT NOT NULL,
+      source_url TEXT NOT NULL,
+      ntrs_id TEXT NOT NULL,
+      dataset_status TEXT NOT NULL,
+      verification_status TEXT NOT NULL,
+      download_authorized INTEGER NOT NULL DEFAULT 0,
+      csv_content TEXT NOT NULL,
+      scatter_json TEXT NOT NULL,
+      citations_json TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_findings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      experiment_id TEXT NOT NULL,
+      finding_order INTEGER NOT NULL,
+      finding_title TEXT NOT NULL,
+      finding_text TEXT NOT NULL,
+      verification_status TEXT NOT NULL DEFAULT 'VERIFIED',
+      source_label TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_references (
+      id TEXT PRIMARY KEY,
+      experiment_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      authors TEXT NOT NULL,
+      publication_year INTEGER NOT NULL,
+      document_id TEXT NOT NULL,
+      page_ref TEXT NOT NULL,
+      url TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      verification_status TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS experiment_rankings (
+      experiment_id TEXT PRIMARY KEY,
+      crew_safety_directness REAL NOT NULL,
+      habitat_applicability REAL NOT NULL,
+      telemetry_fidelity REAL NOT NULL,
+      material_breadth REAL NOT NULL,
+      hardware_heritage REAL NOT NULL,
+      recency REAL NOT NULL,
+      computed_relevance_score REAL NOT NULL,
+      rank_position INTEGER NOT NULL,
+      methodology_version TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
+    );
+  `);
+
+  db.prepare(
+    "INSERT INTO system_meta (key, value) VALUES ('schema_version', 'v3') ON CONFLICT(key) DO UPDATE SET value = 'v3'"
+  ).run();
+}
+
+function seedDatabaseIfNeeded(db: DatabaseSync) {
+  const seeded = db
+    .prepare("SELECT value FROM system_meta WHERE key = 'initial_seed_v3'")
+    .get() as { value: string } | undefined;
+
+  if (seeded?.value === 'done') return;
+
+  const insertExperiment = db.prepare(`
+    INSERT OR IGNORE INTO experiments (
+      id, slug, name, acronym, full_name, category, pillar, combustion_type,
+      fuel_type, fuel_class, research_platform, hardware, gravity, year,
+      start_date, end_date, image, short_description, overview,
+      scientific_objectives_json, research_background, experimental_setup,
+      combustion_characteristics, why_it_matters, related_slugs_json,
+      verification_status, content_source_type, is_demo, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertEnvelopeParams = db.prepare(`
+    INSERT OR IGNORE INTO experiment_parameters (
+      experiment_id, oxygen_min, oxygen_max, pressure_min, pressure_max,
+      airflow_min, airflow_max, parameter_notes
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertDynParam = db.prepare(`
+    INSERT OR IGNORE INTO experiment_dynamic_parameters (
+      id, experiment_id, param_name, param_description, param_value, unit,
+      min_value, max_value, data_type, measurement_source, availability_status,
+      verification_status, sort_order, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertDataset = db.prepare(`
+    INSERT OR IGNORE INTO experiment_datasets (
+      id, experiment_id, dataset_name, description, file_format, sample_count,
+      variables_json, source_name, source_url, ntrs_id, dataset_status,
+      verification_status, download_authorized, csv_content, scatter_json,
+      citations_json, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertFinding = db.prepare(`
+    INSERT INTO experiment_findings (
+      experiment_id, finding_order, finding_title, finding_text,
+      verification_status, source_label, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const insertReference = db.prepare(`
+    INSERT OR IGNORE INTO experiment_references (
+      id, experiment_id, title, authors, publication_year, document_id,
+      page_ref, url, source_type, verification_status
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const computedRanked = NASA_EXPERIMENTS.map((exp) => ({
+    exp,
+    score: computeCrewSafetyRelevance(exp.criteria),
+  })).sort((a, b) => b.score - a.score);
+
+  const insertRanking = db.prepare(`
+    INSERT OR IGNORE INTO experiment_rankings (
+      experiment_id, crew_safety_directness, habitat_applicability, telemetry_fidelity,
+      material_breadth, hardware_heritage, recency, computed_relevance_score, rank_position,
+      methodology_version, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  const upsertInsight = db.prepare(`
+    INSERT INTO research_insights (
+      slug, title, category, summary, metric_label, metric_value, sort_order
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(slug) DO UPDATE SET
+      title = excluded.title,
+      category = excluded.category,
+      summary = excluded.summary,
+      metric_label = excluded.metric_label,
+      metric_value = excluded.metric_value,
+      sort_order = excluded.sort_order
+  `);
+
+  const nowIso = new Date().toISOString();
+
+  db.exec('BEGIN');
+  try {
+    computedRanked.forEach(({ exp, score }, index) => {
+      insertExperiment.run(
+        exp.id,
+        exp.slug,
+        exp.name,
+        exp.acronym,
+        exp.fullName,
+        exp.category,
+        exp.pillar,
+        exp.combustionType,
+        exp.fuelType,
+        exp.fuelClass,
+        exp.researchPlatform,
+        exp.hardware,
+        exp.gravity,
+        exp.year,
+        exp.startDate,
+        exp.endDate,
+        exp.image,
+        exp.shortDescription,
+        exp.summary,
+        JSON.stringify(exp.scientificObjectives),
+        exp.researchBackground,
+        exp.experimentalSetup,
+        exp.combustionCharacteristics,
+        exp.whyItMatters,
+        JSON.stringify(exp.relatedSlugs),
+        exp.verificationStatus,
+        exp.contentSourceType,
+        exp.isDemo ? 1 : 0,
+        nowIso,
+        nowIso
+      );
+
+      insertEnvelopeParams.run(
+        exp.id,
+        exp.oxygenRange[0],
+        exp.oxygenRange[1],
+        exp.pressureRange[0],
+        exp.pressureRange[1],
+        exp.airflowRange[0],
+        exp.airflowRange[1],
+        exp.parameterNotes
+      );
+
+      exp.dynamicParameters.forEach((param, pIdx) => {
+        insertDynParam.run(
+          `prm-${exp.id}-${pIdx + 1}`,
+          exp.id,
+          param.name,
+          param.description,
+          param.value,
+          param.unit,
+          param.minValue,
+          param.maxValue,
+          param.dataType,
+          param.measurementSource,
+          param.availabilityStatus,
+          param.verificationStatus,
+          pIdx + 1,
+          nowIso
+        );
+      });
+
+      exp.datasets.forEach((ds) => {
+        insertDataset.run(
+          ds.id,
+          exp.id,
+          ds.datasetName,
+          ds.description,
+          ds.fileFormat,
+          ds.sampleCount,
+          JSON.stringify(ds.variables),
+          ds.sourceName,
+          ds.sourceUrl,
+          ds.ntrsId,
+          ds.datasetStatus,
+          ds.verificationStatus,
+          ds.downloadAuthorized ? 1 : 0,
+          ds.csvContent,
+          JSON.stringify(exp.scatter),
+          JSON.stringify(exp.citations),
+          nowIso,
+          nowIso
+        );
+      });
+
+      exp.keyFindings.forEach((finding, fIdx) => {
+        const titleMatch = finding.split('.')[0].slice(0, 64);
+        insertFinding.run(
+          exp.id,
+          fIdx + 1,
+          titleMatch || `Finding #${fIdx + 1}`,
+          finding,
+          exp.verificationStatus,
+          exp.verificationStatus === 'DEMO'
+            ? 'Illustrative Demo Finding (Non-NASA)'
+            : exp.ntrsId
+              ? `NTRS ${exp.ntrsId}`
+              : 'Mission Report',
+          nowIso
+        );
+      });
+
+      exp.references.forEach((ref) => {
+        insertReference.run(
+          ref.id,
+          exp.id,
+          ref.title,
+          ref.authors,
+          ref.publicationYear,
+          ref.documentId,
+          ref.pageRef,
+          ref.url,
+          ref.sourceType,
+          ref.verificationStatus
+        );
+      });
+
+      insertRanking.run(
+        exp.id,
+        exp.criteria.crewSafetyDirectness,
+        exp.criteria.habitatApplicability,
+        exp.criteria.telemetryFidelity,
+        exp.criteria.materialBreadth,
+        exp.criteria.hardwareHeritage,
+        exp.criteria.recency,
+        score,
+        index + 1,
+        'NASA-Weighted-v1.0',
+        nowIso
+      );
+    });
+
+    for (const insight of RESEARCH_INSIGHTS_SEED) {
+      upsertInsight.run(
+        insight.slug,
+        insight.title,
+        insight.category,
+        insight.summary,
+        insight.metricLabel,
+        insight.metricValue,
+        insight.sortOrder
+      );
+    }
+
+    db.prepare(
+      "INSERT INTO system_meta (key, value) VALUES ('initial_seed_v3', 'done') ON CONFLICT(key) DO UPDATE SET value = 'done'"
+    ).run();
+
+    db.exec('COMMIT');
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
