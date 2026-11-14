@@ -67,8 +67,8 @@ export const Navbar: React.FC = () => {
           </div>
         </Link>
 
-        {/* Center Zone: Horizontal Text Navigation (Home, About, Dashboard v, Insights, Contact) */}
-        <nav aria-label="Primary Navigation" className="hidden lg:flex items-center gap-8">
+        {/* Center Zone: Horizontal Text Navigation (Home, About, Dashboard v, Data Lab, Insights, Contact) */}
+        <nav aria-label="Primary Navigation" className="hidden lg:flex items-center gap-7">
           <NavLink to="/" end className={({ isActive }) => navLinkClass(isActive)}>
             {({ isActive }) => (
               <>
@@ -142,6 +142,17 @@ export const Navbar: React.FC = () => {
               </div>
             )}
           </div>
+
+          <NavLink to="/data-lab" className={({ isActive }) => navLinkClass(isActive)}>
+            {({ isActive }) => (
+              <>
+                <span>Data Lab</span>
+                {isActive && (
+                  <span className="absolute -bottom-2 left-0 right-0 h-[1.5px] bg-[#D97B29]" />
+                )}
+              </>
+            )}
+          </NavLink>
 
           <NavLink to="/insights" className={({ isActive }) => navLinkClass(isActive)}>
             {({ isActive }) => (
@@ -257,9 +268,21 @@ export const Navbar: React.FC = () => {
             </div>
 
             <NavLink
-              to="/insights"
+              to="/data-lab"
               className={({ isActive }) =>
                 `mt-1 px-3 py-2.5 text-sm font-medium border-l-2 ${
+                  isActive
+                    ? 'border-[#D97B29] text-[#F3EFE8] bg-white/5'
+                    : 'border-transparent text-[#A9A39A]'
+                }`
+              }
+            >
+              Data Lab
+            </NavLink>
+            <NavLink
+              to="/insights"
+              className={({ isActive }) =>
+                `px-3 py-2.5 text-sm font-medium border-l-2 ${
                   isActive
                     ? 'border-[#D97B29] text-[#F3EFE8] bg-white/5'
                     : 'border-transparent text-[#A9A39A]'

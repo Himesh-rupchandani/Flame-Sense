@@ -99,10 +99,17 @@ export const InsightsPage: React.FC = () => {
           {insights && (
             <div className="font-mono-data text-xs text-[#D97B29] tabular-nums">
               {insights.verifiedExperimentCount ?? insights.experimentCount} Verified Studies ·{' '}
-              {insights.totalSampleRuns} Samples · {insights.totalDatasetRuns.toLocaleString()} Runs
+              {insights.totalSampleRuns.toLocaleString()} Indexed Dataset Samples
             </div>
           )}
         </RevealOnScroll>
+
+        {insights?.estimationMethodologyNote && (
+          <div className="mb-6 border border-[#D97B29]/35 bg-[#D97B29]/8 px-4 py-3 text-xs text-[#C2BCB2]">
+            <span className="font-semibold text-[#E68A38]">Methodology &amp; Provenance: </span>
+            {insights.estimationMethodologyNote}
+          </div>
+        )}
 
         {/* Interactive Parameter Sensitivity Controls */}
         <section className="editorial-panel mb-8 p-5">

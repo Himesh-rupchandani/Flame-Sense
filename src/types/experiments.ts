@@ -252,3 +252,156 @@ export interface ExperimentStatisticsResponse {
     parameterCount: number;
   }>;
 }
+
+// ---------- Data Lab (User-Uploaded CSV Inspection & Analytics) ----------
+
+export type DataLabColumnType = 'number' | 'boolean' | 'date' | 'string';
+
+export interface DataLabHistogramBin {
+  label: string;
+  count: number;
+}
+
+export interface DataLabValueCount {
+  value: string;
+  count: number;
+}
+
+export interface DataLabColumnStat {
+  name: string;
+  dataType: DataLabColumnType;
+  totalCount: number;
+  nonNullCount: number;
+  missingCount: number;
+  missingPct: number;
+  uniqueCount: number;
+  min: number | null;
+  max: number | null;
+  mean: number | null;
+  median: number | null;
+  stdDev: number | null;
+  histogram: DataLabHistogramBin[];
+  topValues: DataLabValueCount[];
+}
+
+export interface DataLabCorrelationPair {
+  colA: string;
+  colB: string;
+  r: number;
+  n: number;
+}
+
+export type CombustionValueOrigin =
+  | 'measured'
+  | 'unit_converted'
+  | 'normalized_category'
+  | 'missing'
+  | 'unsupported';
+
+export interface CombustionVariableMatch {
+  role: 'oxygenPct' | 'pressurePsi' | 'airflowCmS' | 'fuelType' | 'temperature' | 'flameCharacteristic';
+  label: string;
+  columnName: string | null;
+  detectedUnit: string;
+  targetUnit?: string;
+  valueOrigin?: CombustionValueOrigin;
+  conversionFormula?: string | null;
+  required?: boolean;
+  compatible: boolean;
+  note: string;
+}
+
+export interface CombustionCompatibilityReport {
+  isPredictionCompatible: boolean;
+  mode: 'PREDICTION_COMPATIBLE_ESTIMATE' | 'STATISTICAL_ANALYSIS_ONLY';
+  detectedVariables: CombustionVariableMatch[];
+  missingRequiredFeatures: string[];
+  warnings: string[];
+  summary: string;
+  predictionEligibility?: {
+    eligible: boolean;
+    reason: string;
+    modelRequirement: string;
+  };
+  matchedColumns?: Array<{
+    role: string;
+    label: string;
+    columnName: string;
+    originalUnit: string;
+    targetUnit: string;
+    valueOrigin: 'measured' | 'unit_converted' | 'normalized_category';
+  }>;
+  unitConversions?: Array<{
+    columnName: string;
+    fromUnit: string;
+    toUnit: string;
+    formula: string;
+    measuredVsConvertedNote: string;
+  }>;
+  missingParameters?: Array<{
+    role: string;
+    label: string;
+    required: boolean;
+    reason: string;
+  }>;
+  unsupportedParameters?: Array<{
+    columnName: string;
+    reason: string;
+    observedUnitOrType: string;
+  }>;
+}
+
+export interface DataLabDatasetSummary {
+  id: string;
+  originalFilename: string;
+  fileSizeBytes: number;
+  rowCount: number;
+  columnCount: number;
+  duplicateRowCount: number;
+  totalMissingCells: number;
+  provenanceLabel: 'User-Uploaded Data';
+  isPredictionCompatible: boolean;
+  expiresAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DataLabDatasetDetail extends DataLabDatasetSummary {
+  columns: string[];
+  columnStats: DataLabColumnStat[];
+  correlations: DataLabCorrelationPair[];
+  combustionCompatibility: CombustionCompatibilityReport;
+  previewRows: Array<Record<string, string | number | null>>;
+  chartRows: Array<Record<string, string | number | null>>;
+}
+
+export interface DataLabAnalyzeResponse {
+  datasetId: string;
+  analyzedAt: string;
+  provenanceLabel: 'User-Uploaded Data';
+  selectedColumns: string[];
+  chartType: 'line' | 'bar' | 'scatter' | 'distribution' | 'correlation';
+  xColumn: string | null;
+  yColumn: string | null;
+  selectedColumnStats: DataLabColumnStat[];
+  filteredCorrelations: DataLabCorrelationPair[];
+  chartRows: Array<Record<string, string | number | null>>;
+  combustionEstimates: {
+    performed: boolean;
+    disclaimer: string;
+    reasonIfSkipped?: string;
+    rowsEvaluated: number;
+    rowsSkippedOutOfRange: number;
+    results: Array<{
+      rowIndex: number;
+      oxygenPct: number;
+      pressurePsi: number;
+      airflowCmS: number;
+      fuelType: FuelTypeId;
+      estimatedRiskScore: number;
+      estimatedLocPct: number;
+      estimatedBand: 'SAFE' | 'CAUTION' | 'DANGER';
+    }>;
+  };
+}
+

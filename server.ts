@@ -1,10 +1,27 @@
 import express from 'express';
+import cors from 'cors';
+import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import dotenv from 'dotenv';
 import { FUEL_TYPES } from './src/data/nasaExperiments.ts';
 import type { FuelTypeId } from './src/data/nasaExperiments.ts';
 import { getDb } from './server/database.ts';
+import {
+  DataLabError,
+  MAX_CSV_UPLOAD_BYTES,
+  analyzeDataLabDataset,
+  buildDataLabCsvExport,
+  buildDataLabJsonReport,
+  createDataLabDatasetFromCsv,
+  decodeCsvBuffer,
+  deleteDataLabDataset,
+  extractDataLabSession,
+  generateDataLabPdfBuffer,
+  getDataLabDatasetDetail,
+  issueDataLabSessionToken,
+  listSessionDataLabDatasets,
+} from './server/services/dataLabService.ts';
 import {
   getAuthorizedDatasetDownload,
   getDatasetPreviewBySlugAndId,
@@ -33,6 +50,8 @@ import {
 } from './server/services/adminExperimentService.ts';
 import { getComputedRankings } from './server/services/rankingService.ts';
 import {
+  fetchMlServiceHealth,
+  getMlServiceBaseUrl,
   getPredictionById,
   listRecentPredictions,
   runAndSavePrediction,
@@ -52,20 +71,75 @@ async function startServer() {
   getDb();
 
   const app = express();
+
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+    : undefined;
+  app.use(
+    cors({
+      origin: allowedOrigins && allowedOrigins.length > 0 ? allowedOrigins : true,
+      credentials: true,
+    })
+  );
   app.use(express.json({ limit: '4mb' }));
 
-  // Health & Database/Model Readiness Check
-  app.get('/api/health', (_req, res) => {
+  const uploadMiddleware = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: MAX_CSV_UPLOAD_BYTES,
+      files: 1,
+    },
+  });
+
+  // Health & Database/ML Service Readiness Check
+  app.get('/api/health', async (_req, res) => {
     const stats = getExperimentStatistics();
+    const mlStatus = await fetchMlServiceHealth();
     res.json({
       connected: true,
+      mlServiceConnected: mlStatus.connected,
+      mlServiceUrl: mlStatus.url,
       databaseEngine: 'SQLite (Normalized Multi-Table Schema v3)',
-      modelName: 'FlameNet-MicroG v2.4 (Empirical NASA Fit + Exact SHAP)',
+      modelMode: 'python-sklearn-ml',
+      isTrainedMlModel: mlStatus.connected,
+      modelName: mlStatus.modelName,
+      isSyntheticDemoData: mlStatus.isSyntheticDemoData,
+      datasetProvenance: mlStatus.datasetProvenance,
+      modelEvaluation: mlStatus.evaluation,
+      limitationsNote: mlStatus.connected
+        ? `Connected to Python Scikit-learn ML service (${mlStatus.modelName}). Training data provenance: ${mlStatus.datasetProvenance}. Not NASA-validated.`
+        : mlStatus.error ||
+          `Python ML prediction service is unavailable (${mlStatus.url}). Predictions will fail cleanly until the ML service is started.`,
       calibrationExperiments: stats.verifiedCount,
+      verifiedExperiments: stats.verifiedCount,
       totalExperiments: stats.totalExperiments,
-      datasetRuns: 5120,
+      availableDatasetsCount: stats.availableDatasetsCount,
+      indexedDatasetSamples: stats.totalSamples,
       externalMlUrlConfigured: Boolean(process.env.ML_BACKEND_URL),
     });
+  });
+
+  app.get('/api/model-info', async (_req, res) => {
+    const baseUrl = getMlServiceBaseUrl();
+    try {
+      const upstream = await fetch(`${baseUrl}/model-info`, {
+        signal: AbortSignal.timeout(2500),
+      });
+      if (!upstream.ok) {
+        const body = await upstream.json().catch(() => null);
+        res.status(upstream.status).json({
+          error: body?.detail || `ML service returned HTTP ${upstream.status}`,
+        });
+        return;
+      }
+      res.json(await upstream.json());
+    } catch (err) {
+      res.status(503).json({
+        error: `Python ML service is unavailable at ${baseUrl}. (${
+          err instanceof Error ? err.message : 'Connection refused'
+        })`,
+      });
+    }
   });
 
   // Categories & Cross-Experiment Statistics (declared BEFORE :slug routes)
@@ -327,15 +401,26 @@ async function startServer() {
     const airflowCmS = Number(body.airflowCmS);
     const fuelType = String(body.fuelType || '') as FuelTypeId;
 
-    if (
-      !Number.isFinite(oxygenPct) ||
-      !Number.isFinite(pressurePsi) ||
-      !Number.isFinite(airflowCmS) ||
-      !FUEL_TYPES.some((f) => f.id === fuelType)
-    ) {
+    const validationErrors: string[] = [];
+    if (!Number.isFinite(oxygenPct) || oxygenPct < 21 || oxygenPct > 85) {
+      validationErrors.push('oxygenPct must be a number between 21 and 85 (% O₂).');
+    }
+    if (!Number.isFinite(pressurePsi) || pressurePsi < 4.3 || pressurePsi > 14.7) {
+      validationErrors.push('pressurePsi must be a number between 4.3 and 14.7 (psi).');
+    }
+    if (!Number.isFinite(airflowCmS) || airflowCmS < 0 || airflowCmS > 100) {
+      validationErrors.push('airflowCmS must be a number between 0 and 100 (cm/s).');
+    }
+    if (!FUEL_TYPES.some((f) => f.id === fuelType)) {
+      validationErrors.push(
+        `fuelType must be one of: ${FUEL_TYPES.map((f) => f.id).join(', ')}.`
+      );
+    }
+
+    if (validationErrors.length > 0) {
       res.status(400).json({
-        error:
-          'Invalid prediction parameters. Expected oxygenPct (21-85), pressurePsi (4.3-14.7), airflowCmS (0-100), and valid fuelType.',
+        error: `Validation failed: ${validationErrors.join(' ')}`,
+        validationErrors,
       });
       return;
     }
@@ -357,6 +442,166 @@ async function startServer() {
   };
   app.post('/api/predictions', handleCreatePrediction);
   app.post('/api/predict', handleCreatePrediction);
+
+  // ---------- Data Lab Routes (Session-Isolated User CSV Upload, Analysis & Exports) ----------
+
+  const handleDataLabError = (res: express.Response, err: unknown) => {
+    if (err instanceof DataLabError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    if (err instanceof multer.MulterError) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const message =
+        err.code === 'LIMIT_FILE_SIZE'
+          ? `Uploaded file exceeds maximum allowed size (${Math.round(MAX_CSV_UPLOAD_BYTES / (1024 * 1024))} MB).`
+          : `Multipart upload error (${err.code}): ${err.message}`;
+      res.status(status).json({ error: message });
+      return;
+    }
+    res.status(500).json({
+      error: err instanceof Error ? err.message : 'Data Lab processing error.',
+    });
+  };
+
+  app.post('/api/data-lab/session', (_req, res) => {
+    res.status(200).json(issueDataLabSessionToken());
+  });
+
+  app.get('/api/data-lab/datasets', (req, res) => {
+    try {
+      const sessionKey = extractDataLabSession(req);
+      const datasets = listSessionDataLabDatasets(sessionKey);
+      res.json({ datasets });
+    } catch (err) {
+      handleDataLabError(res, err);
+    }
+  });
+
+  app.post('/api/data-lab/upload', (req, res) => {
+    uploadMiddleware.single('file')(req, res, (multerErr) => {
+      if (multerErr) {
+        handleDataLabError(res, multerErr);
+        return;
+      }
+      try {
+        const sessionKey = extractDataLabSession(req);
+        let filename = '';
+        let fileSizeBytes = 0;
+        let csvText = '';
+
+        if (req.file) {
+          filename = req.file.originalname;
+          fileSizeBytes = req.file.size;
+          csvText = decodeCsvBuffer(req.file.buffer);
+        } else if (req.body && typeof req.body.csvContent === 'string') {
+          filename = String(req.body.filename || 'uploaded_dataset.csv');
+          csvText = req.body.csvContent;
+          fileSizeBytes = Buffer.byteLength(csvText, 'utf8');
+        } else {
+          res.status(400).json({
+            error: 'No CSV file provided. Upload a .csv file via multipart/form-data (field "file") or JSON { filename, csvContent }.',
+          });
+          return;
+        }
+
+        const created = createDataLabDatasetFromCsv({
+          sessionKey,
+          filename,
+          fileSizeBytes,
+          csvText,
+        });
+        res.status(201).json(created);
+      } catch (err) {
+        handleDataLabError(res, err);
+      }
+    });
+  });
+
+  app.get('/api/data-lab/datasets/:id', (req, res) => {
+    try {
+      const sessionKey = extractDataLabSession(req);
+      const detail = getDataLabDatasetDetail(sessionKey, String(req.params.id || ''));
+      res.json(detail);
+    } catch (err) {
+      handleDataLabError(res, err);
+    }
+  });
+
+  app.post('/api/data-lab/datasets/:id/analyze', (req, res) => {
+    try {
+      const sessionKey = extractDataLabSession(req);
+      const result = analyzeDataLabDataset(
+        sessionKey,
+        String(req.params.id || ''),
+        (req.body || {}) as {
+          selectedColumns?: string[];
+          chartType?: 'line' | 'bar' | 'scatter' | 'distribution' | 'correlation';
+          xColumn?: string | null;
+          yColumn?: string | null;
+          includeCompatibilityEstimates?: boolean;
+        }
+      );
+      res.json(result);
+    } catch (err) {
+      handleDataLabError(res, err);
+    }
+  });
+
+  app.get('/api/data-lab/datasets/:id/report', async (req, res) => {
+    try {
+      const sessionKey = extractDataLabSession(req);
+      const datasetId = String(req.params.id || '');
+      const format = String(req.query.format || 'json').toLowerCase();
+      const colsParam = req.query.columns
+        ? String(req.query.columns)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+
+      if (format === 'csv') {
+        const csvFile = buildDataLabCsvExport(sessionKey, datasetId, colsParam);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${csvFile.filename}"`);
+        res.status(200).send(csvFile.content);
+        return;
+      }
+
+      if (format === 'pdf') {
+        const pdfFile = await generateDataLabPdfBuffer(sessionKey, datasetId, colsParam);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="${pdfFile.filename}"`);
+        res.status(200).send(pdfFile.buffer);
+        return;
+      }
+
+      if (format === 'json') {
+        const report = buildDataLabJsonReport(sessionKey, datasetId, colsParam);
+        const safeName = report.dataset.filename.replace(/\.csv$/i, '').replace(/[^a-z0-9_-]/gi, '_');
+        if (req.query.download === '1') {
+          res.setHeader('Content-Disposition', `attachment; filename="${safeName}_summary.json"`);
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.status(200).json(report);
+        return;
+      }
+
+      res.status(400).json({ error: "Unsupported report format. Use 'pdf', 'json', or 'csv'." });
+    } catch (err) {
+      handleDataLabError(res, err);
+    }
+  });
+
+  app.delete('/api/data-lab/datasets/:id', (req, res) => {
+    try {
+      const sessionKey = extractDataLabSession(req);
+      const deleted = deleteDataLabDataset(sessionKey, String(req.params.id || ''));
+      res.json(deleted);
+    } catch (err) {
+      handleDataLabError(res, err);
+    }
+  });
 
   // Save Contact Message Submission
   app.post('/api/contact', (req, res) => {
@@ -383,6 +628,28 @@ async function startServer() {
   // Explicit 404 JSON for unknown /api/* routes
   app.use('/api', (_req, res) => {
     res.status(404).json({ error: 'API endpoint not found' });
+  });
+
+  // Global JSON error middleware for /api/* (prevents Express default HTML error pages)
+  app.use('/api', (err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    if (res.headersSent) return;
+    if (err instanceof DataLabError || err instanceof HttpError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    if (err instanceof multer.MulterError) {
+      const status = err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      res.status(status).json({ error: err.message });
+      return;
+    }
+    const status =
+      err && typeof err === 'object' && 'status' in err && typeof (err as { status?: unknown }).status === 'number'
+        ? (err as { status: number }).status
+        : err && typeof err === 'object' && 'statusCode' in err && typeof (err as { statusCode?: unknown }).statusCode === 'number'
+          ? (err as { statusCode: number }).statusCode
+          : 500;
+    const message = err instanceof Error ? err.message : 'Unexpected server error.';
+    res.status(status).json({ error: message });
   });
 
   if (!isProduction) {

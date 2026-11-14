@@ -107,7 +107,9 @@ export function getResearchInsights(filters?: InsightsFilterParams) {
     experimentCount: experimentCountRow.cnt,
     verifiedExperimentCount: verifiedCountRow.cnt,
     totalSampleRuns: sampleSumRow.total_samples,
-    totalDatasetRuns: 5120,
+    totalDatasetRuns: sampleSumRow.total_samples,
+    estimationMethodologyNote:
+      'Trend curves reflect the empirical formula estimator evaluated across atmospheric envelopes; study counts and sample totals are queried directly from SQLite.',
     highlights: insightsRows.map((row) => ({
       id: row.id,
       slug: row.slug,

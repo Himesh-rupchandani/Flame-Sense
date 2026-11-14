@@ -12,6 +12,7 @@ import { RankingPage } from './pages/RankingPage.tsx';
 import { PredictionPage } from './pages/PredictionPage.tsx';
 import { InsightsPage } from './pages/InsightsPage.tsx';
 import { ContactPage } from './pages/ContactPage.tsx';
+import { DataLabPage } from './pages/DataLabPage.tsx';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -61,6 +62,7 @@ function AppShell() {
           <Route path="/experiments/:slug" element={<ExperimentDetailPage />} />
           <Route path="/ranking" element={<RankingPage />} />
           <Route path="/prediction" element={<PredictionPage />} />
+          <Route path="/data-lab" element={<DataLabPage />} />
           <Route path="/insights" element={<InsightsPage />} />
           <Route path="/contact" element={<ContactPage />} />
           <Route path="*" element={<NotFoundPage />} />

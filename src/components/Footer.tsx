@@ -36,6 +36,10 @@ export const Footer: React.FC = () => {
             Prediction
           </Link>
           <span aria-hidden="true">·</span>
+          <Link to="/data-lab" className="hover:text-[#D97B29] transition-colors">
+            Data Lab
+          </Link>
+          <span aria-hidden="true">·</span>
           <Link to="/insights" className="hover:text-[#D97B29] transition-colors">
             Insights
           </Link>

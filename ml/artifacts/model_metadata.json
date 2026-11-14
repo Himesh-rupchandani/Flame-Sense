@@ -1,0 +1,197 @@
+{
+  "modelName": "GradientBoostingClassifier (scikit-learn)",
+  "selectedAlgorithmKey": "gradient_boosting",
+  "sklearnModelVersion": "GradientBoostingClassifier (scikit-learn) \u00b7 v1.0",
+  "trainedAt": "2026-11-14T08:34:00.049218+00:00",
+  "datasetFile": "ml/data/flame_sense_training.csv",
+  "isSyntheticDemoData": true,
+  "datasetProvenance": "DEMO / SYNTHETIC DATA (Includes Project Demo CSVs + Synthetic Sweep \u2014 Not Verified NASA Flight Data)",
+  "nasaValidationClaim": false,
+  "validationReport": {
+    "totalRawRows": 771,
+    "validCleanedRows": 759,
+    "droppedInvalidOrIncompleteRows": 12,
+    "missingValueCountsBeforeClean": {
+      "oxygen_pct": 1,
+      "pressure_psi": 5,
+      "airflow_cm_s": 6
+    },
+    "nonNumericTypeErrors": {
+      "oxygen_pct": 0,
+      "pressure_psi": 1,
+      "airflow_cm_s": 0
+    },
+    "missingOrInvalidTargets": 11,
+    "invalidFuelCategoryRows": 0,
+    "outOfRangeRows": 1,
+    "remainingMissingFeaturesImputedInPipeline": {
+      "oxygen_pct": 1,
+      "pressure_psi": 1,
+      "airflow_cm_s": 0
+    },
+    "classDistribution": {
+      "SAFE": 248,
+      "CAUTION": 258,
+      "DANGER": 253
+    }
+  },
+  "split": {
+    "trainSamples": 607,
+    "testSamples": 152,
+    "testRatio": 0.2,
+    "stratified": true
+  },
+  "labels": [
+    "SAFE",
+    "CAUTION",
+    "DANGER"
+  ],
+  "evaluation": {
+    "accuracy": 0.9145,
+    "precisionMacro": 0.9147,
+    "recallMacro": 0.9152,
+    "f1Macro": 0.9145,
+    "cvF1MacroMean": 0.8909,
+    "confusionMatrix": [
+      [
+        46,
+        3,
+        0
+      ],
+      [
+        3,
+        44,
+        5
+      ],
+      [
+        0,
+        2,
+        49
+      ]
+    ],
+    "perClassMetrics": {
+      "SAFE": {
+        "precision": 0.9388,
+        "recall": 0.9388,
+        "f1": 0.9388,
+        "support": 49
+      },
+      "CAUTION": {
+        "precision": 0.898,
+        "recall": 0.8462,
+        "f1": 0.8713,
+        "support": 52
+      },
+      "DANGER": {
+        "precision": 0.9074,
+        "recall": 0.9608,
+        "f1": 0.9333,
+        "support": 51
+      }
+    }
+  },
+  "globalFeatureImportances": [
+    {
+      "feature": "Oxygen (%)",
+      "importancePct": 49.38
+    },
+    {
+      "feature": "Airflow (cm/s)",
+      "importancePct": 20.67
+    },
+    {
+      "feature": "Fuel Type",
+      "importancePct": 19.82
+    },
+    {
+      "feature": "Pressure (psi)",
+      "importancePct": 10.13
+    }
+  ],
+  "modelComparison": [
+    {
+      "key": "random_forest",
+      "modelName": "RandomForestClassifier (scikit-learn)",
+      "cvF1MacroMean": 0.8927,
+      "cvF1MacroStd": 0.0304,
+      "accuracy": 0.8947,
+      "precisionMacro": 0.8947,
+      "recallMacro": 0.896,
+      "f1Macro": 0.8938,
+      "confusionMatrix": [
+        [
+          46,
+          3,
+          0
+        ],
+        [
+          5,
+          41,
+          6
+        ],
+        [
+          0,
+          2,
+          49
+        ]
+      ],
+      "selected": false
+    },
+    {
+      "key": "logistic_regression",
+      "modelName": "LogisticRegression (scikit-learn)",
+      "cvF1MacroMean": 0.8077,
+      "cvF1MacroStd": 0.0353,
+      "accuracy": 0.7697,
+      "precisionMacro": 0.7707,
+      "recallMacro": 0.7712,
+      "f1Macro": 0.7701,
+      "confusionMatrix": [
+        [
+          40,
+          9,
+          0
+        ],
+        [
+          14,
+          33,
+          5
+        ],
+        [
+          0,
+          7,
+          44
+        ]
+      ],
+      "selected": false
+    },
+    {
+      "key": "gradient_boosting",
+      "modelName": "GradientBoostingClassifier (scikit-learn)",
+      "cvF1MacroMean": 0.8909,
+      "cvF1MacroStd": 0.0206,
+      "accuracy": 0.9145,
+      "precisionMacro": 0.9147,
+      "recallMacro": 0.9152,
+      "f1Macro": 0.9145,
+      "confusionMatrix": [
+        [
+          46,
+          3,
+          0
+        ],
+        [
+          3,
+          44,
+          5
+        ],
+        [
+          0,
+          2,
+          49
+        ]
+      ],
+      "selected": true
+    }
+  ]
+}

@@ -5,6 +5,7 @@ import { fetchRankings } from '../services/apiClient.ts';
 import type { RankedExperiment } from '../services/apiClient.ts';
 import { Breadcrumbs } from '../components/Breadcrumbs.tsx';
 import { RevealOnScroll } from '../components/RevealOnScroll.tsx';
+import { VerificationBadge } from '../components/VerificationBadge.tsx';
 
 export const RankingPage: React.FC = () => {
   const [rankings, setRankings] = useState<RankedExperiment[]>([]);
@@ -137,7 +138,10 @@ export const RankingPage: React.FC = () => {
                             >
                               {item.name}
                             </Link>
-                            <div className="text-xs text-[#8A847B]">{item.hardware}</div>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-[#8A847B]">{item.hardware}</span>
+                              <VerificationBadge status={item.verificationStatus} compact />
+                            </div>
                           </td>
                           <td className="py-4 px-3 text-xs uppercase tracking-[0.12em] text-[#C2BCB2]">
                             {item.category}
@@ -187,7 +191,10 @@ export const RankingPage: React.FC = () => {
                   </div>
                   <span className="font-mono-data text-[11px] text-[#D97B29]">{methodologyVersion}</span>
                 </div>
-                <p className="text-xs leading-relaxed text-[#C2BCB2] mb-5">{methodologyDesc}</p>
+                <p className="text-xs leading-relaxed text-[#C2BCB2] mb-3">{methodologyDesc}</p>
+                <div className="mb-5 border border-[#D97B29]/35 bg-[#D97B29]/8 px-3 py-2 text-[11px] text-[#C2BCB2]">
+                  <strong className="text-[#E68A38]">Catalog Note:</strong> Ranking percentages reflect weighted archival heuristics—not flight certification metrics. Items marked <span className="text-[#E68A38]">Demo Data</span> or <span className="text-[#F3EFE8]">Pending</span> require verified NASA telemetry ingestion.
+                </div>
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                   {Object.entries(weights).map(([key, weight]) => (
                     <div

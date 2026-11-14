@@ -50,6 +50,11 @@ function initializeSchemaAndMigrate(db: DatabaseSync) {
       explanation TEXT NOT NULL,
       model_version TEXT NOT NULL,
       corroborating_slugs_json TEXT NOT NULL,
+      confidence REAL,
+      probabilities_json TEXT,
+      is_trained_ml_model INTEGER NOT NULL DEFAULT 0,
+      dataset_provenance TEXT,
+      model_evaluation_json TEXT,
       created_at TEXT NOT NULL
     );
 
@@ -85,6 +90,19 @@ function initializeSchemaAndMigrate(db: DatabaseSync) {
       created_at TEXT NOT NULL
     );
   `);
+
+  const predCols = db.prepare('PRAGMA table_info(predictions)').all() as Array<{ name: string }>;
+  const predColSet = new Set(predCols.map((c) => c.name));
+  const addColIfMissing = (col: string, ddl: string) => {
+    if (!predColSet.has(col)) {
+      db.exec(`ALTER TABLE predictions ADD COLUMN ${col} ${ddl}`);
+    }
+  };
+  addColIfMissing('confidence', 'REAL');
+  addColIfMissing('probabilities_json', 'TEXT');
+  addColIfMissing('is_trained_ml_model', 'INTEGER NOT NULL DEFAULT 0');
+  addColIfMissing('dataset_provenance', 'TEXT');
+  addColIfMissing('model_evaluation_json', 'TEXT');
 
   const schemaMeta = db
     .prepare("SELECT value FROM system_meta WHERE key = 'schema_version'")
@@ -231,6 +249,28 @@ function initializeSchemaAndMigrate(db: DatabaseSync) {
       updated_at TEXT NOT NULL,
       FOREIGN KEY (experiment_id) REFERENCES experiments(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS data_lab_datasets (
+      id TEXT PRIMARY KEY,
+      session_token TEXT NOT NULL,
+      original_filename TEXT NOT NULL,
+      file_size_bytes INTEGER NOT NULL,
+      row_count INTEGER NOT NULL,
+      column_count INTEGER NOT NULL,
+      duplicate_row_count INTEGER NOT NULL DEFAULT 0,
+      columns_json TEXT NOT NULL,
+      column_stats_json TEXT NOT NULL,
+      correlations_json TEXT NOT NULL,
+      combustion_compatibility_json TEXT NOT NULL,
+      raw_csv TEXT NOT NULL,
+      last_analysis_json TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_datalab_session ON data_lab_datasets(session_token);
+    CREATE INDEX IF NOT EXISTS idx_datalab_expires ON data_lab_datasets(expires_at);
   `);
 
   db.prepare(
