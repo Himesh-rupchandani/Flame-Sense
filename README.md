@@ -75,6 +75,8 @@ npm start
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `PORT` | No | `3000` | HTTP server port for Express & Vite dev middleware |
+| `DATA_DIR` | No | `./data` (`/tmp/flame-sense-data` on Vercel) | Writable directory for the SQLite database file |
+| `ML_SERVICE_MODE` | No | `python` (`portable` on Vercel) | `python` proxies `ml/service.py`; `portable` runs the identical model in-process |
 | `ML_BACKEND_URL` | Yes (for `/prediction`) | `http://127.0.0.1:8001` | Python FastAPI + Scikit-learn ML microservice endpoint (`GET /health`, `GET /model-info`, `POST /predict`) |
 | `GEMINI_API_KEY` | No | — | Optional Gemini API key for server-side scientific explanation enrichment |
 | `ADMIN_ACCESS_CODE` | Recommended in Prod | `FLAME-ADMIN-2026` (dev fallback) | Passcode for `POST /api/admin/session` research admin CRUD |
@@ -92,11 +94,16 @@ npm start
 │   ├── prepare_dataset.py             # Extracts project CSVs from SQLite & builds tagged DEMO/SYNTHETIC training CSV
 │   ├── train_model.py                 # Schema/bounds validation, 80/20 split, RF vs LR vs GB comparison, .joblib export
 │   ├── service.py                     # FastAPI inference server (/health, /model-info, /predict + ML Shapley)
+│   ├── export_ts_model.py             # Dumps the fitted pipeline to JSON for the portable TypeScript runtime
 │   ├── data/                          # Generated project CSV extracts & flame_sense_training.csv
 │   └── artifacts/                     # Saved flame_risk_model.joblib & model_metadata.json
-├── server.ts                          # Express HTTP server, Vite dev/prod mounting, REST API & ML proxy routes
+├── api/
+│   └── index.ts                       # Vercel Function entrypoint — re-exports the Express app from server.ts
+├── vercel.json                        # Vercel build/routing config (static SPA + one API function)
+├── server.ts                          # Express app factory (`createApp`) + local Vite dev/prod server
 ├── server/
 │   ├── database.ts                    # SQLite schema initialization, migrations & NASA/demo seed data
+│   ├── ml/                            # Portable model artefacts + in-process inference (used on Vercel)
 │   └── services/
 │       ├── dataLabService.ts          # CSV validation, profiling, Pearson correlations, exploratory bridge, PDFKit
 │       ├── experimentService.ts       # Dynamic experiments, parameters, findings, datasets, references
@@ -147,7 +154,53 @@ npm start
 
 ---
 
-## 6. Scientific Provenance, Methodology & Honest Limitations
+## 6. Deployment (Vercel)
+
+The app ships as **one static Vite site plus one Express Vercel Function**:
+
+| Path | Handled by |
+|---|---|
+| `/`, `/experiments`, `/data-lab`, … | Static build in `dist/` (CDN), SPA fallback to `index.html` |
+| `/api/*` | `api/index.ts` → `createApp()` in `server.ts` |
+| `/api/ml/health`, `/api/ml/predict` | Same function; proxies to `ml/service.py` locally, runs the ported model on Vercel |
+
+```bash
+vercel            # preview deployment
+vercel --prod     # production deployment
+```
+
+`vercel.json` sets `buildCommand: vite build`, `outputDirectory: dist`, and rewrites
+`/api/(.*)` to the single function. Pushing to the connected branch deploys automatically.
+
+### How the two serverless constraints are handled
+
+1. **Read-only filesystem.** The SQLite file cannot live in the deployment bundle, so
+   `server/database.ts` writes to `DATA_DIR` (default `/tmp/flame-sense-data` on Vercel).
+   Schema creation and the NASA seed data are fully generated in code, so every cold
+   start rebuilds a complete, consistent database — no bundled `.db` needed.
+   `/tmp` is per-instance and ephemeral: predictions, Data Lab uploads, and contact
+   messages persist for the life of a warm instance only.
+2. **250 MB function limit.** `scikit-learn + scipy + pandas` cannot ship in a Function.
+   `ml/export_ts_model.py` dumps the fitted `GradientBoostingClassifier` (200 stages ×
+   3 classes, 7 features) to `server/ml/flame-risk-gbdt.json`, and
+   `server/ml/portableFireRiskModel.ts` replays it in pure TypeScript. The port
+   reproduces scikit-learn's float32 feature comparison in tree traversal and Python's
+   `round()` semantics, so predictions, class probabilities, confidence, LOC reference,
+   SHAP attributions, and evaluation metadata are **identical** to the Python service
+   (verified field-by-field over a 224-case grid).
+
+After retraining, refresh the artefact before deploying:
+
+```bash
+python3 ml/train_model.py
+python3 ml/export_ts_model.py
+```
+
+Force one behaviour or the other with `ML_SERVICE_MODE=python|portable`.
+
+---
+
+## 7. Scientific Provenance, Methodology & Honest Limitations
 
 1. **Provenance Labels Everywhere**: Records are explicitly tagged as **NASA Verified**, **Illustrative Demo**, **Pending Verification**, or **User-Uploaded Data** (`Data Lab`). Illustrative/synthetic sample rows are never presented as official NASA flight telemetry.
 2. **ML Training Data Disclosure (`DEMO / SYNTHETIC DATA`)**: The initial Scikit-learn classifier is trained on `ml/data/flame_sense_training.csv`, which combines parameter snapshots from the project's existing CSV datasets with clearly tagged synthetic microgravity sweeps across `SAFE`, `CAUTION`, and `DANGER`. It is designed for hackathon research demonstration and can be re-trained immediately when real NASA experimental labeled datasets are supplied.

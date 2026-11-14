@@ -51,7 +51,9 @@ import {
 import { getComputedRankings } from './server/services/rankingService.ts';
 import {
   fetchMlServiceHealth,
+  getLocalModelInfo,
   getMlServiceBaseUrl,
+  getMlServiceMode,
   getPredictionById,
   listRecentPredictions,
   runAndSavePrediction,
@@ -59,14 +61,20 @@ import {
 import { getResearchInsights } from './server/services/insightsService.ts';
 import { saveContactMessage } from './server/services/contactService.ts';
 
-dotenv.config();
+dotenv.config({ quiet: true });
+
+const VALID_ML_FUELS = new Set<string>(FUEL_TYPES.map((fuel) => fuel.id));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const PORT = Number(process.env.PORT || 3000);
-const isProduction = process.env.NODE_ENV === 'production';
 
-async function startServer() {
+/**
+ * Builds the fully configured Express application (API routes + error handling).
+ *
+ * The static-site / dev-server middleware is deliberately NOT registered here so the
+ * same app can be reused by the Vercel serverless entrypoint (see `api/index.ts`).
+ */
+export async function createApp(): Promise<express.Express> {
   // Initialize & seed SQLite database
   getDb();
 
@@ -100,16 +108,17 @@ async function startServer() {
       mlServiceConnected: mlStatus.connected,
       mlServiceUrl: mlStatus.url,
       databaseEngine: 'SQLite (Normalized Multi-Table Schema v3)',
-      modelMode: 'python-sklearn-ml',
+      modelMode:
+        getMlServiceMode() === 'portable' ? 'portable-sklearn-ml' : 'python-sklearn-ml',
       isTrainedMlModel: mlStatus.connected,
       modelName: mlStatus.modelName,
       isSyntheticDemoData: mlStatus.isSyntheticDemoData,
       datasetProvenance: mlStatus.datasetProvenance,
       modelEvaluation: mlStatus.evaluation,
       limitationsNote: mlStatus.connected
-        ? `Connected to Python Scikit-learn ML service (${mlStatus.modelName}). Training data provenance: ${mlStatus.datasetProvenance}. Not NASA-validated.`
+        ? `Connected to ${getMlServiceMode() === 'portable' ? 'in-process' : 'Python'} Scikit-learn ML service (${mlStatus.modelName}). Training data provenance: ${mlStatus.datasetProvenance}. Not NASA-validated.`
         : mlStatus.error ||
-          `Python ML prediction service is unavailable (${mlStatus.url}). Predictions will fail cleanly until the ML service is started.`,
+          `ML prediction service is unavailable (${mlStatus.url}). Predictions will fail cleanly until the ML service is started.`,
       calibrationExperiments: stats.verifiedCount,
       verifiedExperiments: stats.verifiedCount,
       totalExperiments: stats.totalExperiments,
@@ -120,6 +129,11 @@ async function startServer() {
   });
 
   app.get('/api/model-info', async (_req, res) => {
+    const localInfo = getLocalModelInfo();
+    if (localInfo) {
+      res.json(localInfo);
+      return;
+    }
     const baseUrl = getMlServiceBaseUrl();
     try {
       const upstream = await fetch(`${baseUrl}/model-info`, {
@@ -393,6 +407,71 @@ async function startServer() {
     res.json(record);
   });
 
+  // Python ML microservice passthrough (GET /health, POST /predict). In portable mode the
+  // inference runs in-process instead, so these routes return the same payloads without
+  // requiring a second service.
+  app.get('/api/ml/health', async (_req, res) => {
+    const status = await fetchMlServiceHealth();
+    res.json({
+      status: status.modelLoaded ? 'ok' : 'model_missing',
+      modelLoaded: status.modelLoaded,
+      modelName: status.modelName,
+      isSyntheticDemoData: status.isSyntheticDemoData,
+      datasetProvenance: status.datasetProvenance,
+      evaluation: status.evaluation,
+      split: status.split ?? null,
+      modelComparison: status.modelComparison ?? null,
+    });
+  });
+
+  app.post('/api/ml/predict', async (req, res) => {
+    const body = req.body || {};
+    const localInfo = getLocalModelInfo();
+    if (!localInfo) {
+      // Python mode: proxy straight through to the FastAPI service.
+      const baseUrl = getMlServiceBaseUrl();
+      try {
+        const upstream = await fetch(`${baseUrl}/predict`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        });
+        const payload = await upstream.json().catch(() => null);
+        res.status(upstream.status).json(payload ?? { error: `ML service returned HTTP ${upstream.status}` });
+      } catch (err) {
+        res.status(503).json({
+          error: `Python ML service is unavailable at ${baseUrl}. (${
+            err instanceof Error ? err.message : 'Connection refused'
+          })`,
+        });
+      }
+      return;
+    }
+
+    const oxygenPct = Number(body.oxygenPct);
+    const pressurePsi = Number(body.pressurePsi);
+    const airflowCmS = Number(body.airflowCmS);
+    const fuelType = String(body.fuelType || '');
+    const invalid =
+      !Number.isFinite(oxygenPct) || oxygenPct < 21 || oxygenPct > 85 ||
+      !Number.isFinite(pressurePsi) || pressurePsi < 4.3 || pressurePsi > 14.7 ||
+      !Number.isFinite(airflowCmS) || airflowCmS < 0 || airflowCmS > 100 ||
+      !VALID_ML_FUELS.has(fuelType);
+    if (invalid) {
+      res.status(422).json({
+        detail: 'Invalid prediction input. Expected oxygenPct 21-85, pressurePsi 4.3-14.7, airflowCmS 0-100, and a known fuelType.',
+      });
+      return;
+    }
+    try {
+      const { predict: predictLocally } = await import('./server/ml/portableMlService.ts');
+      res.json(predictLocally({ oxygenPct, pressurePsi, airflowCmS, fuelType: fuelType as never }));
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : 'Prediction failed.' });
+    }
+  });
+
   // Run & Persist Fire Risk Prediction + Exact 16-Coalition SHAP Explainability
   const handleCreatePrediction = async (req: express.Request, res: express.Response) => {
     const body = req.body || {};
@@ -652,6 +731,20 @@ async function startServer() {
     res.status(status).json({ error: message });
   });
 
+  return app;
+}
+
+/**
+ * Local / container entrypoint: serves the Vite dev server in development and the
+ * built `dist/` bundle in production, then listens on PORT.
+ *
+ * Vercel does not use this function; it imports `createApp()` through `api/index.ts`.
+ */
+async function startServer() {
+  const PORT = Number(process.env.PORT || 3000);
+  const isProduction = process.env.NODE_ENV === 'production';
+  const app = await createApp();
+
   if (!isProduction) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
@@ -672,7 +765,15 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start Flame in Freefall server:', err);
-  process.exit(1);
-});
+// Only boot the long-running HTTP server when this file is executed directly
+// (local dev / container). On Vercel, `api/index.ts` imports `createApp()` and the
+// platform owns the HTTP lifecycle.
+const isDirectExecution =
+  typeof process.argv[1] === 'string' && path.resolve(process.argv[1]) === __filename;
+
+if (isDirectExecution && !process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('Failed to start Flame in Freefall server:', err);
+    process.exit(1);
+  });
+}

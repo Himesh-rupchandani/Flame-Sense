@@ -1,5 +1,11 @@
 import crypto from 'crypto';
 import { getDb } from '../database.ts';
+import {
+  getMlModelInfo,
+  getMlServiceHealth,
+  predict as predictPortable,
+  type PredictionInputDto,
+} from '../ml/portableMlService.ts';
 import { FUEL_TYPES, NASA_EXPERIMENTS } from '../../src/data/nasaExperiments.ts';
 import type { FuelTypeId } from '../../src/data/nasaExperiments.ts';
 
@@ -87,7 +93,47 @@ export function getMlServiceBaseUrl(): string {
   return (process.env.ML_BACKEND_URL || 'http://127.0.0.1:8001').replace(/\/$/, '');
 }
 
+/**
+ * The trained model can be served two ways:
+ *
+ * - `portable` (default on Vercel): inference runs in-process from the exported
+ *   artefact in `server/ml/`, which sidesteps the 250 MB function limit that
+ *   scikit-learn + scipy + pandas would blow through.
+ * - `python`: proxy to the FastAPI microservice in `ml/service.py`
+ *   (`ML_BACKEND_URL`), which is how local development and Docker run.
+ */
+export type MlServiceMode = 'portable' | 'python';
+
+export function getMlServiceMode(): MlServiceMode {
+  const explicit = (process.env.ML_SERVICE_MODE || '').trim().toLowerCase();
+  if (explicit === 'portable' || explicit === 'python') return explicit;
+  return process.env.VERCEL ? 'portable' : 'python';
+}
+
 export async function fetchMlServiceHealth(): Promise<MlServiceHealthStatus> {
+  if (getMlServiceMode() === 'portable') {
+    const health = getMlServiceHealth();
+    return {
+      connected: health.modelLoaded,
+      modelLoaded: health.modelLoaded,
+      url: 'in-process:server/ml/portableMlService',
+      modelName: health.modelName,
+      isSyntheticDemoData: health.isSyntheticDemoData,
+      datasetProvenance: health.datasetProvenance,
+      evaluation: health.evaluation
+        ? {
+            ...(health.evaluation as ModelEvaluationSummary),
+            trainSamples: (health.split as { trainSamples?: number } | null)?.trainSamples,
+            testSamples: (health.split as { testSamples?: number } | null)?.testSamples,
+            modelComparison: health.modelComparison as ModelEvaluationSummary['modelComparison'],
+          }
+        : null,
+      split: health.split as MlServiceHealthStatus['split'],
+      modelComparison: health.modelComparison as ModelEvaluationSummary['modelComparison'],
+      error: health.modelLoaded ? undefined : 'Trained ML model artefact is not loaded.',
+    };
+  }
+
   const baseUrl = getMlServiceBaseUrl();
   try {
     const res = await fetch(`${baseUrl}/health`, {
@@ -233,6 +279,34 @@ export async function runAndSavePrediction(rawInput: PredictionInput): Promise<P
     airflowCmS: Number(rawInput.airflowCmS),
     fuelType: rawInput.fuelType,
   };
+
+  if (getMlServiceMode() === 'portable') {
+    const inference = predictPortable(toPortableInput(normalizedInput));
+    const record: PredictionResultRecord = {
+      id: inference.id || crypto.randomUUID(),
+      modelConnected: true,
+      modelVersion: inference.modelVersion,
+      isTrainedMlModel: true,
+      isSyntheticDemoData: inference.isSyntheticDemoData,
+      datasetProvenance: inference.datasetProvenance,
+      methodologyDisclaimer: inference.methodologyDisclaimer,
+      input: normalizedInput,
+      classification: inference.classification,
+      confidence: inference.confidence,
+      probabilities: inference.probabilities,
+      riskScore: inference.riskScore,
+      locPercent: inference.locPercent,
+      o2MarginFromLoc: inference.o2MarginFromLoc,
+      baselineScore: inference.baselineScore,
+      explanation: inference.explanation,
+      shapValues: inference.shapValues,
+      modelEvaluation: inference.modelEvaluation as ModelEvaluationSummary,
+      corroboratingExperiments: selectCorroboratingExperiments(normalizedInput),
+      createdAt: inference.createdAt || new Date().toISOString(),
+    };
+    persistPrediction(record);
+    return record;
+  }
 
   const baseUrl = getMlServiceBaseUrl();
   let upstream: Response;
@@ -481,3 +555,20 @@ export function listRecentPredictions(limit = 8) {
     createdAt: r.created_at,
   }));
 }
+
+
+/** Model metadata for `/api/model-info`; mirrors the Python service's response body. */
+export function getLocalModelInfo(): Record<string, unknown> | null {
+  if (getMlServiceMode() !== 'portable') return null;
+  return getMlModelInfo();
+}
+
+function toPortableInput(input: PredictionInput): PredictionInputDto {
+  return {
+    oxygenPct: input.oxygenPct,
+    pressurePsi: input.pressurePsi,
+    airflowCmS: input.airflowCmS,
+    fuelType: input.fuelType,
+  };
+}
+
